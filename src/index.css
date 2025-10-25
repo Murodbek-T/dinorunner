@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+
+.ground {
+  --left: 0;
+  left: calc(var(--left) * 1%);
+  background-repeat: repeat-x;
+  width: 100%;
+  bottom: 0;
+}
+
+.dino {
+  --bottom: 0;
+  left: 30%;
+  height: 25%;
+  bottom: calc(var(--bottom) * 1%);
+}
+
+.cactus {
+  position: absolute;
+  --left: 0;
+  left: calc(var(--left) * 1%);
+  height: 20%;
+  bottom: 0;
+}
