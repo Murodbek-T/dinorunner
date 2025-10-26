@@ -6,11 +6,16 @@ import {
   setCustomProperty,
 } from "../lib/properties";
 import { initWorldScaling } from "../lib/world";
+import { addCoinsFromScore } from "../lib/currencies";
 
 const Dinogame = () => {
   const { skin } = useSkin();
   const lastTimeRef = useRef(null);
   const [isJumping, setIsJumping] = useState(false);
+  const currentSkinRef = useRef(skin);
+
+  // Score
+  const scoreRef = useRef(0)
 
   // Terrain speed variables
   const SPEED = 0.05;
@@ -39,6 +44,10 @@ const Dinogame = () => {
     const dinoElement = document.querySelector(".dino");
     const worldElement = document.querySelector(".world");
 
+    currentSkinRef.current = skin;
+    dinoElement.src = skin.dino;
+    groundElems.forEach((ground) => (ground.src = skin.ground));
+
     const preload = (...urls) =>
       urls.forEach((url) => {
         const img = new Image();
@@ -56,15 +65,23 @@ const Dinogame = () => {
       yVelocity = 0;
       setCustomProperty(dinoElement, "--bottom", 0);
       document.removeEventListener("keydown", onJump);
+      document.removeEventListener("mousedown", onJump);
+      document.removeEventListener("touchstart", onJump);
+
       document.addEventListener("keydown", onJump);
+      document.addEventListener("mousedown", onJump); // faster than click
+      document.addEventListener("touchstart", onJump);
     }
     function handleRun(delta, speedScale) {
       if (isJumpingRef.current) {
-        dinoElement.src = skin.dino;
+        dinoElement.src = currentSkinRef.current.dino;
         return;
       }
 
-      const dinoFrames = [skin.dinoRun1, skin.dinoRun2];
+      const dinoFrames = [
+        currentSkinRef.current.dinoRun1,
+        currentSkinRef.current.dinoRun2,
+      ];
       currentFrameTime += delta;
 
       if (currentFrameTime >= FRAME_TIME) {
@@ -91,7 +108,8 @@ const Dinogame = () => {
       yVelocity -= GRAVITY * delta;
     }
     function onJump(e) {
-      if (e.code !== "Space" || isJumpingRef.current) return;
+      if ((e.code !== "Space" && e.type === "keydown") || isJumpingRef.current)
+        return;
       yVelocity = JUMP_SPEED;
       isJumpingRef.current = true;
     }
@@ -103,6 +121,7 @@ const Dinogame = () => {
     // Ground functions
     function updateGround(delta, speedScale) {
       groundElems.forEach((ground) => {
+        ground.src = currentSkinRef.current.ground;
         incrementCustomProperty(
           ground,
           "--left",
@@ -135,9 +154,19 @@ const Dinogame = () => {
       updateDino(deltaTime, speedScale);
       updateSpeedScale(deltaTime);
       updateCactus(deltaTime, speedScale);
+      updateScore(deltaTime);
       if (checkLose()) return handleLose();
 
       requestAnimationFrame(update);
+    }
+
+    // Score functions
+    function updateScore(delta) {
+      const scoreElement = document.querySelector(".score");
+      const increment = delta * 0.01
+      scoreRef.current += increment;
+     addCoinsFromScore(increment)
+      if (scoreElement) scoreElement.textContent = Math.floor(scoreRef.current);
     }
 
     // Cactus functions
@@ -154,7 +183,11 @@ const Dinogame = () => {
     }
     function createCactus() {
       const cactus = document.createElement("img");
-      const cactusImages = [skin.cactus2, skin.cactus3];
+      const cactusImages = [
+        currentSkinRef.current.cactus1,
+        currentSkinRef.current.cactus2,
+        currentSkinRef.current.cactus3,
+      ];
       cactus.dataset.cactus = true;
       cactus.src = cactusImages[randomCactusNumber(0, cactusImages.length - 1)];
       cactus.classList.add("cactus");
@@ -202,6 +235,7 @@ const Dinogame = () => {
     function handleStart() {
       lastTimeRef.current = null;
       speedScale = 1;
+      scoreRef.current = 0;
       setupGround();
       setupCactus();
       setupDino();
@@ -212,16 +246,18 @@ const Dinogame = () => {
     function handleLose() {
       setTimeout(() => {
         document.addEventListener("keydown", handleStart, { once: true });
+        document.addEventListener("click", handleStart, { once: true });
       }, 100);
     }
     document.addEventListener("keydown", handleStart, { once: true });
+    worldElement.addEventListener("click", handleStart, { once: true });
   }, [skin]);
 
   return (
     <div className="world relative overflow-hidden">
       <img
         src={skin.dino}
-        className="background-image absolute dino"
+        className="background-image absolute dino z-1"
         alt="dino"
       />
       <img

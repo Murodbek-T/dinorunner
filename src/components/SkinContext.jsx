@@ -1,20 +1,42 @@
-// SkinContext.tsx
 import React, { createContext, useContext, useState } from "react";
 import { SKINS } from "../data/skins";
 
 const SkinContext = createContext({
   skin: SKINS.default,
-  setSkin: (name) => {},
+  activeDino: "default",
+  activeGround: "default",
+  activeCactus: "default",
+  setDinoSkin: () => {},
+  setGroundSkin: () => {},
+  setCactusSkin: () => {},
 });
 
 export const SkinProvider = ({ children }) => {
-  const [active, setActive] = useState("default");
+  const [activeDino, setActiveDino] = useState("default");
+  const [activeGround, setActiveGround] = useState("default");
+  const [activeCactus, setActiveCactus] = useState("default");
+
+  // Compose the current skin object for the game
+  const skin = {
+    dino: SKINS[activeDino].dino,
+    dinoRun1: SKINS[activeDino].dinoRun1,
+    dinoRun2: SKINS[activeDino].dinoRun2,
+    ground: SKINS[activeGround].ground,
+    cactus1: SKINS[activeCactus].cactus1,
+    cactus2: SKINS[activeCactus].cactus2,
+    cactus3: SKINS[activeCactus].cactus3,
+  };
 
   return (
     <SkinContext.Provider
       value={{
-        skin: SKINS[active],
-        setSkin: setActive,
+        skin,
+        activeDino,
+        activeGround,
+        activeCactus,
+        setDinoSkin: setActiveDino,
+        setGroundSkin: setActiveGround,
+        setCactusSkin: setActiveCactus,
       }}
     >
       {children}
