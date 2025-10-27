@@ -20,6 +20,8 @@
   bottom: calc(var(--bottom) * 1%);
 }
 
+
+
 .cactus {
   position: absolute;
   --left: 0;

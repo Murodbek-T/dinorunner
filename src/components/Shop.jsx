@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { SKINS } from "../data/skins";
 import { useSkin } from "./SkinContext";
 import { Card, Button, Row, Col, Container, Tabs, Tab } from "react-bootstrap";
-import { useCoins, coins, spendCoins } from "../lib/currencies";
+import { useCoins, _coins, spendCoins } from "../lib/currencies";
 
 const Shop = () => {
   const {
@@ -36,7 +36,7 @@ const Shop = () => {
 
 
 
-  // Handle buying a skin
+
   const handleBuy = (type, name, price) => {
     if (!spendCoins(price)) return alert("Not enough coins!");
 
@@ -46,7 +46,7 @@ const Shop = () => {
     }));
   };
 
-  // Handle activating a skin
+
   const handleActivate = (type, name) => {
     if (type === "dino") setDinoSkin(name);
     if (type === "ground") setGroundSkin(name);
@@ -55,7 +55,7 @@ const Shop = () => {
 
   const renderTab = (type) => {
     return (
-      <Row xs={1} sm={2} md={3} lg={4} className="g-4">
+      <Row xs={1} sm={2} md={2} lg={2} className="g-4">
         {Object.entries(SKINS).map(([name, data]) => {
           const price = prices[name] || 0;
           const ownedSkin = owned[type].includes(name);
@@ -64,7 +64,6 @@ const Shop = () => {
             (type === "ground" && activeGround === name) ||
             (type === "cactus" && activeCactus === name);
 
-          // Which image to show for preview
           const previewImg =
             type === "dino"
               ? data.dino

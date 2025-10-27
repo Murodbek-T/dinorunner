@@ -16,7 +16,6 @@ export const SkinProvider = ({ children }) => {
   const [activeGround, setActiveGround] = useState("default");
   const [activeCactus, setActiveCactus] = useState("default");
 
-  // Compose the current skin object for the game
   const skin = {
     dino: SKINS[activeDino].dino,
     dinoRun1: SKINS[activeDino].dinoRun1,

@@ -11,33 +11,50 @@ import { addCoinsFromScore } from "../lib/currencies";
 const Dinogame = () => {
   const { skin } = useSkin();
   const lastTimeRef = useRef(null);
-  const [isJumping, setIsJumping] = useState(false);
+  const [gameState, setGameState] = useState("idle");
+  const [countdown, setCountdown] = useState(null);
   const currentSkinRef = useRef(skin);
+  const gameStateRef = useRef(gameState);
+  const scoreRef = useRef(0);
+  const pausedRef = useRef(false);
 
-  // Score
-  const scoreRef = useRef(0)
 
-  // Terrain speed variables
   const SPEED = 0.05;
   const SPEED_SCALE_INC = 0.00001;
-  let speedScale;
-
-  // Jump variables
   const JUMP_SPEED = 0.45;
   const GRAVITY = 0.0015;
-
-  // Dino variables
-  let dinoFrame = 0;
-  let currentFrameTime = 0;
-  let yVelocity;
   const FRAME_TIME = 100;
   const DINO_FRAME_COUNT = 2;
-
-  // Cactus variables
-  let nextCactusTime;
-  const CACTUS_SPEED = 0.05;
   const CACTUS_INTERVAL_MIN = 500;
   const CACTUS_INTERVAL_MAX = 2000;
+
+
+  const speedScaleRef = useRef(1);
+  const dinoFrameRef = useRef(0);
+  const currentFrameTimeRef = useRef(0);
+  const yVelocityRef = useRef(0);
+  const nextCactusTimeRef = useRef(0);
+  const isJumpingRef = useRef(false);
+
+  useEffect(() => {
+    gameStateRef.current = gameState;
+    pausedRef.current = gameState === "paused";
+  }, [gameState]);
+
+  const resumeGameWithCountdown = () => {
+    let count = 3;
+    setCountdown(count);
+    const timer = setInterval(() => {
+      count -= 1;
+      if (count > 0) setCountdown(count);
+      else {
+        clearInterval(timer);
+        setCountdown(null);
+        setGameState("playing");
+        lastTimeRef.current = performance.now();
+      }
+    }, 1000);
+  };
 
   useEffect(() => {
     const groundElems = document.querySelectorAll(".ground");
@@ -47,156 +64,112 @@ const Dinogame = () => {
     currentSkinRef.current = skin;
     dinoElement.src = skin.dino;
     groundElems.forEach((ground) => (ground.src = skin.ground));
-
-    const preload = (...urls) =>
-      urls.forEach((url) => {
-        const img = new Image();
-        img.src = url;
-      });
-
-    preload(skin.dino, skin.ground, skin.cactus1, skin.cactus2, skin.cactus3);
-
     initWorldScaling();
 
-    const isJumpingRef = { current: false };
+ 
+    [skin.dino, skin.ground, skin.cactus1, skin.cactus2, skin.cactus3].forEach(
+      (url) => {
+        const img = new Image();
+        img.src = url;
+      }
+    );
 
     // Dino functions
     function setupDino() {
-      yVelocity = 0;
+      yVelocityRef.current = 0;
+      isJumpingRef.current = false;
       setCustomProperty(dinoElement, "--bottom", 0);
-      document.removeEventListener("keydown", onJump);
-      document.removeEventListener("mousedown", onJump);
-      document.removeEventListener("touchstart", onJump);
-
-      document.addEventListener("keydown", onJump);
-      document.addEventListener("mousedown", onJump); // faster than click
-      document.addEventListener("touchstart", onJump);
     }
-    function handleRun(delta, speedScale) {
+
+    function handleRun(delta) {
       if (isJumpingRef.current) {
         dinoElement.src = currentSkinRef.current.dino;
         return;
       }
 
-      const dinoFrames = [
+      const frames = [
         currentSkinRef.current.dinoRun1,
         currentSkinRef.current.dinoRun2,
       ];
-      currentFrameTime += delta;
-
-      if (currentFrameTime >= FRAME_TIME) {
-        dinoFrame = (dinoFrame + 1) % DINO_FRAME_COUNT;
-        if (dinoElement) {
-          dinoElement.src = dinoFrames[dinoFrame];
-        }
-        currentFrameTime -= FRAME_TIME;
+      currentFrameTimeRef.current += delta;
+      if (currentFrameTimeRef.current >= FRAME_TIME) {
+        dinoFrameRef.current = (dinoFrameRef.current + 1) % DINO_FRAME_COUNT;
+        dinoElement.src = frames[dinoFrameRef.current];
+        currentFrameTimeRef.current -= FRAME_TIME;
       }
     }
-    function getDinoRect() {
-      return dinoElement.getBoundingClientRect();
-    }
+
     function handleJump(delta) {
       if (!isJumpingRef.current) return;
-
-      incrementCustomProperty(dinoElement, "--bottom", yVelocity * delta);
-
+      incrementCustomProperty(
+        dinoElement,
+        "--bottom",
+        yVelocityRef.current * delta
+      );
       if (getCustomProperty(dinoElement, "--bottom") <= 0) {
         setCustomProperty(dinoElement, "--bottom", 0);
         isJumpingRef.current = false;
       }
+      yVelocityRef.current -= GRAVITY * delta;
+    }
 
-      yVelocity -= GRAVITY * delta;
-    }
     function onJump(e) {
-      if ((e.code !== "Space" && e.type === "keydown") || isJumpingRef.current)
+      if (
+        (e.type === "keydown" && e.code !== "Space") ||
+        isJumpingRef.current ||
+        gameStateRef.current !== "playing"
+      ) {
         return;
-      yVelocity = JUMP_SPEED;
+      }
+      yVelocityRef.current = JUMP_SPEED; 
       isJumpingRef.current = true;
-    }
-    function updateDino(delta, speedScale) {
-      handleRun(delta, speedScale);
-      handleJump(delta);
     }
 
     // Ground functions
+    function setupGround() {
+      setCustomProperty(groundElems[0], "--left", 0);
+      setCustomProperty(groundElems[1], "--left", 100);
+    }
+
     function updateGround(delta, speedScale) {
       groundElems.forEach((ground) => {
-        ground.src = currentSkinRef.current.ground;
         incrementCustomProperty(
           ground,
           "--left",
           delta * speedScale * SPEED * -1
         );
-
         if (getCustomProperty(ground, "--left") <= -100) {
           incrementCustomProperty(ground, "--left", 200);
         }
       });
     }
-    function setupGround() {
-      setCustomProperty(groundElems[0], "--left", 0);
-      setCustomProperty(groundElems[1], "--left", 100);
-    }
-    function updateSpeedScale(delta) {
-      speedScale += delta * SPEED_SCALE_INC;
-    }
-    function update(time) {
-      if (lastTimeRef.current == null) {
-        lastTimeRef.current = time;
-        requestAnimationFrame(update);
-        return;
-      }
-
-      const deltaTime = time - lastTimeRef.current;
-      lastTimeRef.current = time;
-
-      updateGround(deltaTime, speedScale);
-      updateDino(deltaTime, speedScale);
-      updateSpeedScale(deltaTime);
-      updateCactus(deltaTime, speedScale);
-      updateScore(deltaTime);
-      if (checkLose()) return handleLose();
-
-      requestAnimationFrame(update);
-    }
-
-    // Score functions
-    function updateScore(delta) {
-      const scoreElement = document.querySelector(".score");
-      const increment = delta * 0.01
-      scoreRef.current += increment;
-     addCoinsFromScore(increment)
-      if (scoreElement) scoreElement.textContent = Math.floor(scoreRef.current);
-    }
 
     // Cactus functions
     function setupCactus() {
-      nextCactusTime = CACTUS_INTERVAL_MIN;
-      document.querySelectorAll("[data-cactus]").forEach((cactus) => {
-        cactus.remove();
-      });
+      nextCactusTimeRef.current = CACTUS_INTERVAL_MIN;
+      document.querySelectorAll("[data-cactus]").forEach((c) => c.remove());
     }
+
     function getCactusRects() {
-      return [...document.querySelectorAll("[data-cactus]")].map((cactus) => {
-        return cactus.getBoundingClientRect();
-      });
+      return [...document.querySelectorAll("[data-cactus]")].map((c) =>
+        c.getBoundingClientRect()
+      );
     }
+
     function createCactus() {
       const cactus = document.createElement("img");
-      const cactusImages = [
+      const images = [
         currentSkinRef.current.cactus1,
         currentSkinRef.current.cactus2,
         currentSkinRef.current.cactus3,
       ];
       cactus.dataset.cactus = true;
-      cactus.src = cactusImages[randomCactusNumber(0, cactusImages.length - 1)];
+      cactus.src = images[Math.floor(Math.random() * images.length)];
       cactus.classList.add("cactus");
       setCustomProperty(cactus, "--left", 100);
       worldElement.appendChild(cactus);
     }
-    function randomCactusNumber(min, max) {
-      return Math.floor(Math.random() * (max - min + 1) + min);
-    }
+
     function updateCactus(delta, speedScale) {
       document.querySelectorAll("[data-cactus]").forEach((cactus) => {
         incrementCustomProperty(
@@ -208,33 +181,80 @@ const Dinogame = () => {
           cactus.remove();
         }
       });
-      if (nextCactusTime <= 0) {
+
+      if (nextCactusTimeRef.current <= 0) {
         createCactus();
-        nextCactusTime =
-          randomCactusNumber(CACTUS_INTERVAL_MIN, CACTUS_INTERVAL_MAX) /
+        nextCactusTimeRef.current =
+          (Math.random() * (CACTUS_INTERVAL_MAX - CACTUS_INTERVAL_MIN) +
+            CACTUS_INTERVAL_MIN) /
           speedScale;
       }
-
-      nextCactusTime -= delta;
+      nextCactusTimeRef.current -= delta;
     }
-    // Lose game function
-    function isCollision(rect1, rect2) {
+
+    // Update score
+    function updateScore(delta) {
+      const scoreElement = document.querySelector(".score");
+      const multiplier = window.scoreMultiplier || 1;
+      const increment = delta * 0.01 * multiplier;
+      scoreRef.current += increment;
+      addCoinsFromScore(increment);
+      if (scoreElement) {
+        scoreElement.textContent = Math.floor(scoreRef.current);
+      }
+    }
+
+    // Lose logic
+    function checkLose() {
+      if (window.godMode) return false;
+      const dinoRect = dinoElement.getBoundingClientRect();
+      return getCactusRects().some((r) => isCollision(r, dinoRect));
+    }
+
+    function isCollision(r1, r2) {
       return (
-        rect1.left < rect2.right &&
-        rect1.top < rect2.bottom &&
-        rect1.right > rect2.left &&
-        rect1.bottom > rect2.top
+        r1.left < r2.right &&
+        r1.right > r2.left &&
+        r1.top < r2.bottom &&
+        r1.bottom > r2.top
       );
     }
-    function checkLose() {
-      const dinoRect = getDinoRect();
-      return getCactusRects().some((rect) => isCollision(rect, dinoRect));
+
+    //Update loop
+    function update(time) {
+      if (pausedRef.current || gameStateRef.current !== "playing") {
+        requestAnimationFrame(update);
+        return;
+      }
+
+      if (lastTimeRef.current == null) {
+        lastTimeRef.current = time;
+        requestAnimationFrame(update);
+        return;
+      }
+
+      const delta = time - lastTimeRef.current;
+      lastTimeRef.current = time;
+
+      updateGround(delta, speedScaleRef.current);
+      handleRun(delta);
+      handleJump(delta);
+      updateCactus(delta, speedScaleRef.current);
+      updateScore(delta);
+
+      speedScaleRef.current += delta * SPEED_SCALE_INC;
+
+      if (checkLose()) return handleLose();
+
+      requestAnimationFrame(update);
     }
 
-    // Start
+    // Game flow
     function handleStart() {
+      if (gameStateRef.current === "playing") return;
+      setGameState("playing");
       lastTimeRef.current = null;
-      speedScale = 1;
+      speedScaleRef.current = 1;
       scoreRef.current = 0;
       setupGround();
       setupCactus();
@@ -242,24 +262,40 @@ const Dinogame = () => {
       requestAnimationFrame(update);
     }
 
-    // Stop
     function handleLose() {
+      setGameState("gameover");
       setTimeout(() => {
-        document.addEventListener("keydown", handleStart, { once: true });
-        document.addEventListener("click", handleStart, { once: true });
+        document.addEventListener("keydown", handleRestart, { once: true });
+        document.addEventListener("click", handleRestart, { once: true });
       }, 100);
     }
-    document.addEventListener("keydown", handleStart, { once: true });
-    worldElement.addEventListener("click", handleStart, { once: true });
-  }, [skin]);
+
+    function handleRestart() {
+      setGameState("idle");
+    }
+
+    // Event setups
+    document.addEventListener("keydown", onJump);
+    document.addEventListener("mousedown", onJump);
+    document.addEventListener("touchstart", onJump);
+
+    if (gameState === "idle") {
+      document.addEventListener("keydown", handleStart, { once: true });
+      worldElement.addEventListener("click", handleStart, { once: true });
+    }
+
+    return () => {
+      document.removeEventListener("keydown", onJump);
+      document.removeEventListener("mousedown", onJump);
+      document.removeEventListener("touchstart", onJump);
+      document.removeEventListener("keydown", handleStart);
+      worldElement.removeEventListener("click", handleStart);
+    };
+  }, [skin, gameState]);
 
   return (
-    <div className="world relative overflow-hidden">
-      <img
-        src={skin.dino}
-        className="background-image absolute dino z-1"
-        alt="dino"
-      />
+    <div className="world relative overflow-hidden w-full h-full">
+      <img src={skin.dino} className="absolute dino z-1" alt="dino" />
       <img
         src={skin.ground}
         className="h-3 absolute bottom-0 ground"
@@ -270,6 +306,59 @@ const Dinogame = () => {
         className="h-3 absolute bottom-0 ground"
         alt="ground"
       />
+
+      <div className="absolute top-2 right-2 text-white text-xl font-bold bg-black bg-opacity-50 px-3 py-1 rounded z-20">
+        Score: <span className="score">0</span>
+      </div>
+
+      {gameState === "playing" && (
+        <button
+          onClick={() => setGameState("paused")}
+          className="absolute top-2 left-2 bg-gray-700 text-white px-3 py-1 rounded z-20"
+        >
+          Pause
+        </button>
+      )}
+
+      {gameState === "paused" && (
+        <div className="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center z-20">
+          <h2 className="text-white text-3xl mb-4">Game Paused</h2>
+          <button
+            onClick={resumeGameWithCountdown}
+            className="bg-green-600 px-4 py-2 text-white rounded"
+          >
+            Resume
+          </button>
+        </div>
+      )}
+
+      {countdown && (
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-30">
+          <h1 className="text-white text-6xl font-bold">{countdown}</h1>
+        </div>
+      )}
+
+      {gameState === "idle" && (
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10">
+          <div className="text-center text-white">
+            <h2 className="text-3xl font-bold mb-4">🦖 Dino Game</h2>
+            <p className="text-xl mb-2">Tap to start the game</p>
+            <p className="text-sm opacity-75">Press SPACE or click to jump</p>
+          </div>
+        </div>
+      )}
+
+      {gameState === "gameover" && (
+        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-10">
+          <div className="text-center text-white">
+            <h2 className="text-4xl font-bold mb-2 text-red-500">Game Over</h2>
+            <p className="text-2xl mb-4 font-mono">
+              Score: {Math.floor(scoreRef.current)}
+            </p>
+            <p className="text-lg mb-4">Tap to play again</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
